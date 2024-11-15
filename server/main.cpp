@@ -56,8 +56,12 @@ int main() {
                 std::cout << "...disconnect " << clientIP << ":" << ntohs(clientAddr.sin_port) << std::endl;
                 break;
             }
-            std::cout << buf << std::endl;
-            send(conn, buf, len, 0);
+            if (strcmp(buf, "ping") == 0) {
+                std::cout << "pong" << std::endl;
+                send(conn, "pong", len, 0);
+            }
+//            std::cout << buf << std::endl;
+
         }
 
         close(conn);
