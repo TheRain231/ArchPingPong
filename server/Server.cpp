@@ -7,10 +7,10 @@ Server::Server() {
 }
 
 Server::~Server() {
-    close(listenfd);  // Закрываем сокет прослушивания
+    close(listenfd);
     for (auto &t : clientThreads) {
         if (t.joinable()) {
-            t.join();  // Ждем завершения всех потоков
+            t.join();
         }
     }
 }
@@ -18,12 +18,7 @@ Server::~Server() {
 void Server::run() {
     listenToClient();
     while (true) {
-        acceptConnection();  // Продолжаем принимать подключения
-
-        // Создаем новый поток для каждого нового клиента
-        std::lock_guard<std::mutex> lock(acceptMutex);  // Защищаем создание потока
-
-        clientThreads.push_back(std::thread(&Server::handleClient, this));
+        acceptConnection();
     }
 }
 
@@ -47,7 +42,7 @@ void Server::bindAddress() const {
 }
 
 void Server::listenToClient() const {
-    if(listen(listenfd, 5) == -1) {
+    if (listen(listenfd, 5) == -1) {
         std::cerr << "Error: listen" << std::endl;
         throw std::runtime_error("listen");
     }
@@ -55,32 +50,44 @@ void Server::listenToClient() const {
 }
 
 void Server::acceptConnection() {
-    conn = accept(listenfd, reinterpret_cast<struct sockaddr *>(&clientAddr), &clientAddrLen);
-    if (conn < 0) {
+    sockaddr_in clientAddr{};
+    socklen_t clientAddrLen = sizeof(clientAddr);
+    int clientSocket = accept(listenfd, reinterpret_cast<struct sockaddr *>(&clientAddr), &clientAddrLen);
+    if (clientSocket < 0) {
         std::cerr << "Error: accept" << std::endl;
         return;
     }
+
+    char clientIP[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
-    std::cout << "...connect " << clientIP << ":" << ntohs(clientAddr.sin_port) << std::endl;
+    std::cout << "...connect " << clientIP << ":" << ntohs(clientAddr.sin_port) << " as Client " << clientSocket <<std::endl;
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        clients[clientSocket] = clientIP;  // Добавляем клиента в список
+    }
+
+    clientThreads.emplace_back(&Server::handleClient, this, clientSocket);
 }
 
-void Server::handleClient() {
+void Server::handleClient(int clientSocket) {
     char buf[255];
     while (true) {
         memset(buf, 0, sizeof(buf));
-        const long len = recv(conn, buf, sizeof(buf), 0);
+        const long len = recv(clientSocket, buf, sizeof(buf), 0);
         if (len <= 0) {
-            std::cerr << "Client disconnected" << std::endl;
+            std::cerr << "Client disconnected: " << clientSocket << std::endl;
             break;
         }
         buf[len] = '\0';
-        if (strcmp(buf, "exit") == 0) {
-            std::cout << "...disconnect " << clientIP << ":" << ntohs(clientAddr.sin_port) << std::endl;
-            break;
-        }
-        std::cout << buf << std::endl;
-        buf[1] = 'o';  // Пример обработки данных
-        send(conn, buf, len, 0);
+
+        std::cout << "Client " << clientSocket << ": " << buf << std::endl;
+
+        buf[1] = 'o';
+
+        send(clientSocket, buf, len, 0);
     }
-    close(conn);  // Закрываем соединение с клиентом после завершения
+
+    close(clientSocket);
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    clients.erase(clientSocket);  // Удаляем клиента из списка
 }

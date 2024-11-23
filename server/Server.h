@@ -7,7 +7,8 @@
 #include <cstring>
 #include <vector>
 #include <thread>
-#include <mutex>   // Для мьютекса
+#include <mutex>
+#include <map>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -19,14 +20,9 @@ class Server {
     int listenfd{};                          // Сокет для прослушивания
     sockaddr_in addr{};                      // Адрес сервера
 
-    int conn{};                              // Сокет для подключения клиента
-    char clientIP[INET_ADDRSTRLEN] = "";     // IP клиента
-
-    sockaddr_in clientAddr{};                // Адрес клиента
-    socklen_t clientAddrLen = sizeof(clientAddr); // Длина адреса клиента
-
-    std::vector<std::thread> clientThreads;  // Вектор для хранения потоков клиентов
-    std::mutex acceptMutex;                  // Мьютекс для синхронизации
+    std::vector<std::thread> clientThreads;  // Вектор потоков клиентов
+    std::map<int, std::string> clients;      // Карта клиентов (сокет -> IP)
+    std::mutex clientsMutex;                 // Мьютекс для защиты clients
 
 public:
     Server();
@@ -35,11 +31,11 @@ public:
     [[noreturn]] void run();
 
 private:
-    void createSocket();                     // Создание сокета
-    void bindAddress() const;                // Привязка адреса
-    void listenToClient() const;             // Прослушивание клиента
-    void acceptConnection();                 // Принятие подключения
-    void handleClient();                     // Обработка клиента в отдельном потоке
+    void createSocket();
+    void bindAddress() const;
+    void listenToClient() const;
+    void acceptConnection();
+    void handleClient(int clientSocket);
 };
 
 #endif //SERVER_H
