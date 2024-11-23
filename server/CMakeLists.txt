@@ -3,4 +3,6 @@ project(Server)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(Server main.cpp)
+add_executable(Server main.cpp
+        Server.cpp
+        Server.h)
